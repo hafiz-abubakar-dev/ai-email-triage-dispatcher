@@ -1,0 +1,726 @@
+{
+  "name": "n8n-ai-email-triage-router",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "maxResults": 2,
+        "filters": {
+          "readStatus": "unread"
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -144,
+        -240
+      ],
+      "id": "37e5d46d-1797-4dcc-b5a2-9c36c51117cf",
+      "name": "Trigger: Watch Unread Emails",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Email Subject : {{ $json.Subject }}\nEmail Body : {{ $json.snippet }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are an intelligent email triage and customer support AI agent for \"Haider Gem Stone\", a business specializing in custom gemstones and handmade jewelry. Your primary task is to read incoming customer emails and logically determine whether they require a response based on specific actionable criteria.  **Actionable Categories (Requires Response = TRUE):** 1. **New Order Inquiries:** The sender is asking about placing a new order, pricing, custom designs (e.g., rings, lockets, bracelets), or gemstone availability. 2. **Order Status:** The sender is asking for an update on an existing order or asking if their item is ready. 3. **Delivery / Shipping:** The sender is asking about delivery dates, shipping duration, tracking, or delays. 4. **Order Complaints:** The sender is expressing dissatisfaction, reporting a defect, or complaining about an order they received.  **Non-Actionable Categories (Requires Response = FALSE):** - Spam, marketing emails, newsletters, SEO service offers, B2B sales pitches, or any general inquiries entirely unrelated to the jewelry/gemstone business.  **Instructions:** Analyze the provided email Subject and Body. Determine if it falls into one of the Actionable Categories. You must output your final analysis strictly in the following JSON format without any markdown formatting or extra text:  {   \"requires_response\": true/false,   \"category\": \"new_order\" | \"order_status\" | \"delivery_inquiry\" | \"complaint\" | \"ignore\",   \"summary\": \"A brief 1-sentence summary of the customer's email.\",   \"reason\": \"Briefly explain why this email does or does not require a response based on the criteria.\" }"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        80,
+        -240
+      ],
+      "id": "558a75eb-b9ef-4510-ace4-a4465721c3fa",
+      "name": "AI: Gatekeeper Intent Filter"
+    },
+    {
+      "parameters": {
+        "model": "qwen3.7-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAlibabaCloud",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        -32
+      ],
+      "id": "78c0eb9a-7cf8-4850-b246-cfdf26a12a47",
+      "name": "Model: Qwen (Spam & Noise Gatekeeper)",
+      "credentials": {
+        "alibabaCloudApi": {
+          "id": "",
+          "name": "Qwen Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"requires_response\": {\n      \"type\": \"boolean\",\n      \"description\": \"True if the email requires a response based on the business rules, otherwise false.\"\n    },\n    \"category\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"new_order\",\n        \"order_status\",\n        \"delivery_inquiry\",\n        \"complaint\",\n        \"ignore\"\n      ],\n      \"description\": \"The exact category of the email.\"\n    },\n    \"summary\": {\n      \"type\": \"string\",\n      \"description\": \"A brief 1-sentence summary of the customer's email.\"\n    },\n    \"reason\": {\n      \"type\": \"string\",\n      \"description\": \"Brief explanation of why this email does or does not require a response.\"\n    }\n  },\n  \"required\": [\n    \"requires_response\",\n    \"category\",\n    \"summary\",\n    \"reason\"\n  ],\n  \"additionalProperties\": false\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        224,
+        -32
+      ],
+      "id": "be05f042-44a9-4b19-a7db-2d60005dd878",
+      "name": "Parser: Boolean Response Schema1"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.requires_response }}",
+                    "rightValue": false,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    },
+                    "id": "2d209593-6dc2-49d0-ae5b-cf9a86d451b7"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Response True"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "dcb9c3ae-f2aa-45aa-ac06-fb7583761d43",
+                    "leftValue": "={{ $json.output.requires_response }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Response False"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        432,
+        -240
+      ],
+      "id": "29789743-71d4-4865-88a0-26f6b49dfbb5",
+      "name": "Route: Filter Spam vs Actionable"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Email Subject : {{ $('Trigger: Watch Unread Emails').item.json.Subject }}\nEmail Body :  {{ $('Trigger: Watch Unread Emails').item.json.snippet }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are an elite Customer Experience & Triage AI Agent for \"Haider Gem Stone\", a premium business specializing in custom gemstones and handmade jewelry.   Your objective is to carefully analyze incoming customer emails, draft a highly professional, empathetic, and tailored response for the customer, and extract structured data so the internal workflow system can route the inquiry to the correct department.  ### 1. CATEGORIZATION & ROUTING RULES You must classify the email into one of the following categories and assign the correct internal routing departments:  - CATEGORY: \"new_order\"   - Condition: Customer is asking about placing an order, pricing, custom designs, or gemstone availability.   - Route To: \"manager\"   - CC Manager: false  - CATEGORY: \"order_status\" OR \"delivery_inquiry\"   - Condition: Customer is asking for an update on an existing order, shipping time, tracking, or delays.   - Route To: \"logistics\"   - CC Manager: false  - CATEGORY: \"complaint\"   - Condition: Customer is reporting a defect, expressing dissatisfaction, or has a problem with a received item.   - Route To: \"complaints_dept\"   - CC Manager: true (Crucial: The manager must always be copied on complaints)  - CATEGORY: \"ignore\"   - Condition: Spam, marketing, B2B sales, or completely unrelated to the business.   - Route To: \"none\"   - CC Manager: false  ### 2. CUSTOMER REPLY DRAFTING RULES Draft a response to the customer based on their specific email.  - Tone: Extremely polite, professional, and empathetic.  - Acknowledge their specific issue or inquiry (e.g., mention the product or order number if provided). - Set clear expectations: Inform them that their email has been forwarded to the specific department (e.g., Manager, Logistics Team, or Customer Success Team) and they will get back to them shortly. - Sign off as \"Customer Support Team, Haider Gem Stone\". - Leave the draft empty (\"\") ONLY IF the category is \"ignore\".  ### 3. OUTPUT FORMAT You must output your analysis STRICTLY in the following JSON format. Do not include any markdown tags (like ```json), conversational text, or explanations outside the JSON object.  {   \"category\": \"new_order | order_status | delivery_inquiry | complaint | ignore\",   \"routing\": {     \"forward_to\": \"manager | logistics | complaints_dept | none\",     \"cc_manager\": true/false   },   \"extracted_details\": {     \"customer_name\": \"Extract if available, otherwise null\",     \"order_number\": \"Extract if available, otherwise null\",     \"product_mentioned\": \"Extract gem or jewelry type if mentioned, otherwise null\",     \"internal_summary\": \"A 1-2 sentence precise summary of the customer's request for internal staff.\"   },   \"customer_reply_draft\": \"Write the complete, ready-to-send email response to the customer here. Use \\n for line breaks.\" }"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        688,
+        -352
+      ],
+      "id": "2d88563c-926c-4654-9708-da9e115f7290",
+      "name": "AI: Deep Triage & Response Drafter"
+    },
+    {
+      "parameters": {
+        "model": "qwen3.7-plus",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAlibabaCloud",
+      "typeVersion": 1,
+      "position": [
+        624,
+        -96
+      ],
+      "id": "3eccce20-0485-447c-8a77-2d64559e7d6e",
+      "name": "Model: Qwen (Triage & Drafter)",
+      "credentials": {
+        "alibabaCloudApi": {
+          "id": "",
+          "name": "Qwen Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"category\": {\n      \"type\": \"string\",\n      \"enum\": [\"new_order\", \"order_status\", \"delivery_inquiry\", \"complaint\", \"ignore\"]\n    },\n    \"routing\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"forward_to\": {\n          \"type\": \"string\",\n          \"enum\": [\"manager\", \"logistics\", \"complaints_dept\", \"none\"]\n        },\n        \"cc_manager\": {\n          \"type\": \"boolean\"\n        }\n      },\n      \"required\": [\"forward_to\", \"cc_manager\"]\n    },\n    \"extracted_details\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"customer_name\": { \"type\": [\"string\", \"null\"] },\n        \"order_number\": { \"type\": [\"string\", \"null\"] },\n        \"product_mentioned\": { \"type\": [\"string\", \"null\"] },\n        \"internal_summary\": { \"type\": \"string\" }\n      },\n      \"required\": [\"internal_summary\"]\n    },\n    \"customer_reply_draft\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\"category\", \"routing\", \"extracted_details\", \"customer_reply_draft\"],\n  \"additionalProperties\": false\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        832,
+        -112
+      ],
+      "id": "73ab7c22-2131-4161-9c6f-90fe3e60a7ea",
+      "name": "Parser: Department & Reply Schema"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.category }}",
+                    "rightValue": "new_order",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "aac09944-4856-4e54-9c04-0f097b9d50ce"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "New Order "
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "8a829a2a-0d2e-4bc7-adb2-6bbbed519fe3",
+                    "leftValue": "={{ $json.output.customer_reply_draft }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Customer Reply By Ai "
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3c8eb8ce-3022-4258-86ce-837ca212369f",
+                    "leftValue": "={{ $json.output.category }}",
+                    "rightValue": "order_status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Send Handler Department"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "6a0a1e54-faf9-4a70-ac84-1a2fac9c7df3",
+                    "leftValue": "={{ $json.output.category }}",
+                    "rightValue": "delivery_inquiry",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Send Handler Department"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "3dfcfd82-00c8-471f-9b3f-7a1f4831ebb6",
+                    "leftValue": "={{ $json.output.category }}",
+                    "rightValue": "complaint",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Help center"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "5ade1429-7c7b-4ee7-b1f7-ed7f21f7040b",
+                    "leftValue": "={{ $json.output.category }}",
+                    "rightValue": "ignore",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "IGNORE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1056,
+        -416
+      ],
+      "id": "55aa16b0-eea6-4b82-bf69-6397f2f37e50",
+      "name": "Route: Multi-Department Dispatcher"
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_MANAGEMENT_EMAIL_HERE",
+        "subject": "={{ $('Trigger: Watch Unread Emails').item.json.Subject }}",
+        "emailType": "text",
+        "message": "=Customer Name :{{ $json.output.extracted_details.customer_name }}\nOrder_Number : {{ $json.output.extracted_details.order_number }}\nProduct_mentioned :{{ $json.output.extracted_details.product_mentioned }}\nSummary : {{ $json.output.extracted_details.internal_summary }}",
+        "options": {
+          "replyTo": "={{ $('Trigger: Watch Unread Emails').item.json.From }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1392,
+        -624
+      ],
+      "id": "2eefdf1f-fd5f-4f43-8ddb-fb6982d7f245",
+      "name": "Email: Dispatch to Management",
+      "webhookId": "2d6351c6-177f-42cc-aaf0-ca8b964f3f14",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $('Trigger: Watch Unread Emails').item.json.id }}",
+        "emailType": "text",
+        "message": "={{ $json.output.customer_reply_draft }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1392,
+        -432
+      ],
+      "id": "8062f20d-fa7b-482b-8e89-19d8da0bc15d",
+      "name": "Email: Send Auto-Reply to Customer",
+      "webhookId": "490e76ab-a6ba-4b2d-865c-6da0f9f62ac8",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_LOGISTICS_EMAIL_HERE",
+        "subject": "={{ $('Trigger: Watch Unread Emails').item.json.Subject }}",
+        "emailType": "text",
+        "message": "=Customer Name :{{ $json.output.extracted_details.customer_name }} \nOrder_Number : {{ $json.output.extracted_details.order_number }} \nProduct_mentioned :{{ $json.output.extracted_details.product_mentioned }} \nSummary : {{ $json.output.extracted_details.internal_summary }}",
+        "options": {
+          "replyTo": "={{ $('Trigger: Watch Unread Emails').item.json.From }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1392,
+        -240
+      ],
+      "id": "42877665-0878-4c76-984f-3fec35810d81",
+      "name": "Email: Dispatch to Logistics Team",
+      "webhookId": "f632bc73-7de8-4ba8-9553-ee8ae3db97c3",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "YOUR_SUPPORT_EMAIL_HERE",
+        "subject": "={{ $('Trigger: Watch Unread Emails').item.json.Subject }}",
+        "emailType": "text",
+        "message": "=Customer Name :{{ $json.output.extracted_details.customer_name }} \nOrder_Number : {{ $json.output.extracted_details.order_number }} \nProduct_mentioned :{{ $json.output.extracted_details.product_mentioned }} \nSummary : {{ $json.output.extracted_details.internal_summary }}",
+        "options": {
+          "replyTo": "={{ $('Trigger: Watch Unread Emails').item.json.From }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1392,
+        -16
+      ],
+      "id": "125249d6-9e20-47f5-99b3-5ed0bd2129d5",
+      "name": "Email: Dispatch to Support Desk",
+      "webhookId": "60589ef8-6e30-4caf-9de2-38a037ebf8e7",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1744,
+        -320
+      ],
+      "id": "14892322-e593-4335-81e7-f597cbdb6ce8",
+      "name": "Sync: Collect Dispatched Branch Items"
+    },
+    {
+      "parameters": {
+        "sendTo": "abubakarjutt1@gmail.com",
+        "subject": "={{ $('AI: Deep Triage & Response Drafter').item.json.output.category }}",
+        "emailType": "text",
+        "message": "={{ $('AI: Deep Triage & Response Drafter').item.json.output.customer_reply_draft }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2000,
+        -320
+      ],
+      "id": "f0f7549f-f310-492a-9eea-a87f2f018727",
+      "name": "Email: Send Daily Triage Log / Audit",
+      "webhookId": "3326fa4b-3d06-455b-9e07-e0033d664f30",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Trigger: Watch Unread Emails": {
+      "main": [
+        [
+          {
+            "node": "AI: Gatekeeper Intent Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Gatekeeper Intent Filter": {
+      "main": [
+        [
+          {
+            "node": "Route: Filter Spam vs Actionable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Model: Qwen (Spam & Noise Gatekeeper)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI: Gatekeeper Intent Filter",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser: Boolean Response Schema1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI: Gatekeeper Intent Filter",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: Filter Spam vs Actionable": {
+      "main": [
+        [
+          {
+            "node": "AI: Deep Triage & Response Drafter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Deep Triage & Response Drafter": {
+      "main": [
+        [
+          {
+            "node": "Route: Multi-Department Dispatcher",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Model: Qwen (Triage & Drafter)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI: Deep Triage & Response Drafter",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser: Department & Reply Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI: Deep Triage & Response Drafter",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: Multi-Department Dispatcher": {
+      "main": [
+        [
+          {
+            "node": "Email: Dispatch to Management",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email: Send Auto-Reply to Customer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email: Dispatch to Logistics Team",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email: Dispatch to Logistics Team",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email: Dispatch to Support Desk",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sync: Collect Dispatched Branch Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email: Dispatch to Management": {
+      "main": [
+        [
+          {
+            "node": "Sync: Collect Dispatched Branch Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email: Send Auto-Reply to Customer": {
+      "main": [
+        [
+          {
+            "node": "Sync: Collect Dispatched Branch Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email: Dispatch to Logistics Team": {
+      "main": [
+        [
+          {
+            "node": "Sync: Collect Dispatched Branch Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email: Dispatch to Support Desk": {
+      "main": [
+        [
+          {
+            "node": "Sync: Collect Dispatched Branch Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync: Collect Dispatched Branch Items": {
+      "main": [
+        [
+          {
+            "node": "Email: Send Daily Triage Log / Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "59785084-a926-45f0-8d79-00c907d8015e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": ""
+  },
+  "nodeGroups": [],
+  "id": "TcztZSitLB3JYxWz",
+  "tags": []
+}
